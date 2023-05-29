@@ -4,12 +4,15 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
+requests = "*"
 django = "*"
 django-dotenv = "*"
 django-extensions = "*"
 djangorestframework = "*"
+django-cors-headers = "*"
 
 [dev-packages]
 
 [requires]
-python_version = "3.9"
+python_version = "3.10"
+python_full_version = "3.10.11"

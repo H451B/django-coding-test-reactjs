@@ -4,47 +4,207 @@
 
 {% block content %}
 
-    <div class="d-sm-flex align-items-center justify-content-between mb-4">
-        <h1 class="h3 mb-0 text-gray-800">Products</h1>
-    </div>
+<div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">Products</h1>
+</div>
 
+<!-- Dynamic -->
+<script>
+    async function fetchData() {
+        try {
+            const response = await fetch('http://localhost:8000/product/product-variant-prices');
+            const data = await response.json();
+            const uniqueProducts = {};
+            data.forEach(perId => {
+                const prodId = perId.product;
+                if (!uniqueProducts[prodId]) {
+                    uniqueProducts[prodId] = [];
+                }
+                uniqueProducts[prodId].push(perId);
+            });
 
-    <div class="card">
-        <form action="" method="get" class="card-header">
-            <div class="form-row justify-content-between">
-                <div class="col-md-2">
-                    <input type="text" name="title" placeholder="Product Title" class="form-control">
-                </div>
-                <div class="col-md-2">
-                    <select name="variant" id="" class="form-control">
-                        <option selected disabled>--Select A Variant--</option>
+            const tableBody = document.getElementById('table-body');
+            var ids = 1;
+            const itemsPerPage = 5;
+            let currentPage = 1;
 
-                    </select>
-                </div>
+            // Function to display items for the current page
+            async function displayItems() {
+                // Clear the table body
+                tableBody.innerHTML = '';
 
-                <div class="col-md-3">
-                    <div class="input-group">
-                        <div class="input-group-prepend">
-                            <span class="input-group-text">Price Range</span>
-                        </div>
-                        <input type="text" name="price_from" aria-label="First name" placeholder="From"
-                               class="form-control">
-                        <input type="text" name="price_to" aria-label="Last name" placeholder="To" class="form-control">
+                // Calculate the starting and ending indexes for the current page
+                const startIndex = (currentPage - 1) * itemsPerPage;
+                const endIndex = Math.min(startIndex + itemsPerPage,Object.keys(uniqueProducts).length);
+
+                // Get the keys for the products of the current page
+                const keys = Object.keys(uniqueProducts).slice(startIndex, endIndex);
+
+                const productsData = await Promise.all(keys.map(async key => {
+                    try {
+                        const productResponse = await fetch(`http://localhost:8000/product/all/${key}`);
+                        const productData = await productResponse.json();
+                        return productData;
+                    } catch (error) {
+                        console.error('Error:', error);
+                    }
+                }));
+
+                productsData.forEach((productData, index) => {
+                    const key = keys[index];
+                    const products = uniqueProducts[key];
+                    const prodTitle = productData.title;
+                    const prodDescription = productData.description;
+
+                    const row = document.createElement('tr');
+
+                    const idCell = document.createElement('td');
+                    idCell.textContent = key;
+                    row.appendChild(idCell);
+
+                    const titleCell = document.createElement('td');
+                    titleCell.textContent = prodTitle;
+                    row.appendChild(titleCell);
+
+                    const descriptionCell = document.createElement('td');
+                    descriptionCell.textContent = prodDescription;
+                    row.appendChild(descriptionCell);
+
+                    // Variant Section Begin
+                    const variantContainer = document.createElement('td');
+                    const variantList = document.createElement('dl');
+                    variantList.classList.add('row', 'mb-0');
+                    variantList.style.height = '80px';
+                    variantList.style.overflow = 'hidden';
+                    variantList.id = 'variant';
+
+                    products.forEach(prod => {
+                        const variantHTML = `
+            <dt class="col-sm-3 pb-0">${prod.price}</dt>
+            <dd class="col-sm-9">
+                <dl class="row mb-0">
+                    <dd class="col-sm-4 pb-0">Price: ${prod.price}</dd>
+                    <dd class="col-sm-4 pb-0">Stock: ${prod.stock}</dd>
+                </dl>
+            </dd>
+          `;
+
+                        variantList.innerHTML += variantHTML;
+                    });
+
+                    variantContainer.appendChild(variantList);
+                    row.appendChild(variantContainer);
+
+                    const showMoreButton = document.createElement('button');
+                    showMoreButton.classList.add('btn', 'btn-sm', 'btn-link');
+                    showMoreButton.textContent = 'Show more';
+                    showMoreButton.onclick = function () {
+                        $('#variant').toggleClass('h-auto');
+                    };
+
+                    variantContainer.appendChild(showMoreButton);
+                    // End Variant section
+
+                    const actionCell = document.createElement('td');
+                    const btnGroup = document.createElement('div');
+                    btnGroup.classList.add('btn-group', 'btn-group-sm');
+
+                    const editLink = document.createElement('a');
+                    editLink.href = '';
+                    editLink.classList.add('btn', 'btn-success');
+                    editLink.textContent = 'Edit';
+
+                    btnGroup.appendChild(editLink);
+                    actionCell.appendChild(btnGroup);
+                    row.appendChild(actionCell);
+
+                    tableBody.appendChild(row);
+                    ids += 1;
+                });
+
+                const currentRange = `Showing ${startIndex + 1} to ${endIndex} out of ${Object.keys(uniqueProducts).length}`;
+                document.getElementById('current-items-range').textContent = currentRange;
+            }
+
+            // Function to create pagination buttons
+            function createPaginationButtons() {
+                const paginationContainer = document.getElementById('pagination-container');
+                paginationContainer.innerHTML = '';
+
+                // Calculate the total number of pages
+                const totalPages = Math.ceil(Object.keys(uniqueProducts).length / itemsPerPage);
+
+                for (let i = 1; i <= totalPages; i++) {
+                    const button = document.createElement('button');
+                    button.textContent = i;
+                    button.classList.add('btn', 'btn-sm', 'btn-link');
+
+                    // Set the active class for the current page
+                    if (i === currentPage) {
+                        button.classList.add('active');
+                    }
+
+                    // Add an event listener to navigate to the clicked page
+                    button.addEventListener('click', function () {
+                        currentPage = i;
+                        displayItems();
+                        createPaginationButtons();
+                    });
+
+                    paginationContainer.appendChild(button);
+                }
+            }
+
+            // Display the items for the initial page
+            displayItems();
+
+            // Create the pagination buttons
+            createPaginationButtons();
+        } catch (error) {
+            console.error('Error:', error);
+        }
+    }
+
+    fetchData();
+
+</script>
+
+<div class="card">
+    <form action="" method="get" class="card-header">
+        <div class="form-row justify-content-between">
+            <div class="col-md-2">
+                <input type="text" name="title" placeholder="Product Title" class="form-control">
+            </div>
+            <div class="col-md-2">
+                <select name="variant" id="" class="form-control">
+                    <option selected disabled>--Select A Variant--</option>
+
+                </select>
+            </div>
+
+            <div class="col-md-3">
+                <div class="input-group">
+                    <div class="input-group-prepend">
+                        <span class="input-group-text">Price Range</span>
                     </div>
-                </div>
-                <div class="col-md-2">
-                    <input type="date" name="date" placeholder="Date" class="form-control">
-                </div>
-                <div class="col-md-1">
-                    <button type="submit" class="btn btn-primary float-right"><i class="fa fa-search"></i></button>
+                    <input type="text" name="price_from" aria-label="First name" placeholder="From"
+                        class="form-control">
+                    <input type="text" name="price_to" aria-label="Last name" placeholder="To" class="form-control">
                 </div>
             </div>
-        </form>
+            <div class="col-md-2">
+                <input type="date" name="date" placeholder="Date" class="form-control">
+            </div>
+            <div class="col-md-1">
+                <button type="submit" class="btn btn-primary float-right"><i class="fa fa-search"></i></button>
+            </div>
+        </div>
+    </form>
 
-        <div class="card-body">
-            <div class="table-response">
-                <table class="table">
-                    <thead>
+    <div class="card-body">
+        <div class="table-response">
+            <table class="table">
+                <thead>
                     <tr>
                         <th>#</th>
                         <th>Title</th>
@@ -52,77 +212,26 @@
                         <th>Variant</th>
                         <th width="150px">Action</th>
                     </tr>
-                    </thead>
+                </thead>
 
-                    <tbody>
-                    <tr>
-                        <td>1</td>
-                        <td>T-Shirt <br> Created at : 25-Aug-2020</td>
-                        <td>Quality product in low cost</td>
-                        <td>
-                            <dl class="row mb-0" style="height: 80px; overflow: hidden" id="variant">
-                                <dt class="col-sm-3 pb-0">
-                                    XL/ Black/ Full
-                                </dt>
-                                <dd class="col-sm-9">
-                                    <dl class="row mb-0">
-                                        <dd class="col-sm-4 pb-0">Price : 200.0</dd>
-                                        <dd class="col-sm-8 pb-0">InStock : 50.</dd>
-                                    </dl>
-                                </dd>
-                                <dt class="col-sm-3 pb-0">
-                                    XL/ Black/ Half
-                                </dt>
-                                <dd class="col-sm-9">
-                                    <dl class="row mb-0">
-                                        <dd class="col-sm-4 pb-0">Price : 200.0</dd>
-                                        <dd class="col-sm-8 pb-0">InStock : 50.</dd>
-                                    </dl>
-                                </dd>
-                                <dt class="col-sm-3 pb-0">
-                                    L/ Black/ Full
-                                </dt>
-                                <dd class="col-sm-9">
-                                    <dl class="row mb-0">
-                                        <dd class="col-sm-4 pb-0">Price : 200.0</dd>
-                                        <dd class="col-sm-8 pb-0">InStock : 50.</dd>
-                                    </dl>
-                                </dd>
-                                <dt class="col-sm-3 pb-0">
-                                    L/ Black/ Half
-                                </dt>
-                                <dd class="col-sm-9">
-                                    <dl class="row mb-0">
-                                        <dd class="col-sm-4 pb-0">Price : 200.0</dd>
-                                        <dd class="col-sm-8 pb-0">InStock : 50.</dd>
-                                    </dl>
-                                </dd>
-                            </dl>
-                            <button onclick="$('#variant').toggleClass('h-auto')" class="btn btn-sm btn-link">Show more
-                            </button>
-                        </td>
-                        <td>
-                            <div class="btn-group btn-group-sm">
-                                <a href="" class="btn btn-success">Edit</a>
-                            </div>
-                        </td>
-                    </tr>
-                    </tbody>
+                <!-- Pagination Data -->
+                <tbody id="table-body">
 
-                </table>
-            </div>
+                </tbody>
 
+            </table>
         </div>
+    </div>
 
-        <div class="card-footer">
-            <div class="row justify-content-between">
-                <div class="col-md-6">
-                    <p>Showing 1 to 10 out of 100</p>
-                </div>
-                <div class="col-md-2">
-
-                </div>
+    <div class="card-footer">
+        <div class="row justify-content-between">
+            <div class="col-md-6">
+                <p id="current-items-range"></p>
+            </div>
+            <div class="col-md-2">
+                <div id="pagination-container"></div>
             </div>
         </div>
     </div>
+</div>
 {% endblock %}
